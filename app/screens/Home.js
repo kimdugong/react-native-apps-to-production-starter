@@ -1,6 +1,6 @@
 import PropTypes from 'prop-types';
 import React, { Component } from 'react';
-import { StatusBar, KeyboardAvoidingView } from 'react-native';
+import { StatusBar, KeyboardAvoidingView, NetInfo } from 'react-native';
 import { connect } from 'react-redux';
 
 import { Container } from '../components/Container';
@@ -10,7 +10,7 @@ import { ClearButton } from '../components/Button';
 import { LastConverted } from '../components/Text';
 import { Header } from '../components/Header';
 import { connectAlert } from '../components/Alert';
-
+import { changeNetworkStatus } from '../actions/network';
 import { changeCurrencyAmount, swapCurrency, getInitialConversion } from '../actions/currencies';
 
 class Home extends Component {
@@ -26,10 +26,12 @@ class Home extends Component {
     primaryColor: PropTypes.string,
     currencyError: PropTypes.string,
     alertWithType: PropTypes.func,
+    isConnected: PropTypes.bool,
   };
 
   componentWillMount() {
     this.props.dispatch(getInitialConversion());
+    NetInfo.addEventListener('connectionChange', this.handleNetworkChange);
   }
 
   componentWillReceiveProps(nextProps) {
@@ -37,6 +39,14 @@ class Home extends Component {
       this.props.alertWithType('error', 'Error', nextProps.currencyError);
     }
   }
+
+  componentWillUnmount() {
+    NetInfo.removeEventListener('connectionChange', this.handleNetworkChange);
+  }
+
+  handleNetworkChange = (info) => {
+    this.props.dispatch(changeNetworkStatus(info.type));
+  };
 
   handleChangeText = (text) => {
     this.props.dispatch(changeCurrencyAmount(text));
@@ -58,6 +68,14 @@ class Home extends Component {
     this.props.navigation.navigate('Options');
   };
 
+  handleDisconnectedPress = () => {
+    this.props.alertWithType(
+      'warn',
+      'Not connected to the internet',
+      "Just a heads up that you're not connected to the internet - some features may not work.",
+    );
+  };
+
   render() {
     let quotePrice = '...';
     if (!this.props.isFetching) {
@@ -67,7 +85,11 @@ class Home extends Component {
     return (
       <Container backgroundColor={this.props.primaryColor}>
         <StatusBar backgroundColor="blue" barStyle="light-content" />
-        <Header onPress={this.handleOptionsPress} />
+        <Header
+          onPress={this.handleOptionsPress}
+          isConnected={this.props.isConnected}
+          onWarningPress={this.handleDisconnectedPress}
+        />
         <KeyboardAvoidingView behavior="padding">
           <Logo tintColor={this.props.primaryColor} />
           <InputWithButton
@@ -113,6 +135,7 @@ const mapStateToProps = (state) => {
     isFetching: conversionSelector.isFetching,
     primaryColor: state.theme.primaryColor,
     currencyError: state.currencies.error,
+    isConnected: state.network.connected,
   };
 };
 
